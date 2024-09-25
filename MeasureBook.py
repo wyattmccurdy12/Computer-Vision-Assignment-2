@@ -24,24 +24,56 @@ def main():
     # Find the outer contour (contours with no parent, i.e., hierarchy[i][3] == -1)
     outer_contours = [contour for i, contour in enumerate(contours) if hierarchy[0][i][3] == -1]
 
-    # Draw original image and outer contours
+    cv.drawContours(img, outer_contours, -1, (0, 255, 0), 2)
+
+    # Display the warped image
+    cv.imshow('Warped Image', img)
+    cv.waitKey(0)
+    cv.destroyAllWindows()
 
 
+    # # # 
+    outer_contour = outer_contours[0]
+    peri = cv.arcLength(outer_contour, True)
+    approx = cv.approxPolyDP(outer_contour, 0.02 * peri, True)
+
+    # Get the points for perspective transform
+    pts = approx.reshape(4, 2)
+    rect = np.zeros((4, 2), dtype="float32")
 
 
+    # Order the points: top-left, top-right, bottom-right, bottom-left
+    s = pts.sum(axis=1)
+    rect[0] = pts[np.argmin(s)]
+    rect[2] = pts[np.argmax(s)]
+
+    diff = np.diff(pts, axis=1)
+    rect[1] = pts[np.argmin(diff)]
+    rect[3] = pts[np.argmax(diff)]
 
 
+    # Set desired size and aspect ratio for the cards
+    width = 700
+    height = 400
 
+    dst = np.array([
+        [0, 0],
+        [width - 1, 0],
+        [width - 1, height - 1],
+        [0, height - 1]
+    ], dtype="float32")
 
+    # Compute the perspective transform matrix and apply it
+    M = cv.getPerspectiveTransform(rect, dst)
+    warp = cv.warpPerspective(img, M, (width, height))
 
+    # Show the result
+    cv.imshow('Warped Card', warp)
+    cv.waitKey(0)
+    cv.destroyAllWindows()
 
-
-
-
-
-
-
-
+if __name__ == '__main__':
+    main()
 
 
 
@@ -118,6 +150,3 @@ def main():
     # cv.imshow('Annotated Image', img)
     # cv.waitKey(0)
     # cv.destroyAllWindows()
-
-if __name__ == '__main__':
-    main()
