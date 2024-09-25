@@ -38,7 +38,7 @@ def find_outer_contour(blurred_img):
     contours, hierarchy = cv.findContours(edges, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)  # Find contours
     outer_contours = [contour for i, contour in enumerate(contours) if hierarchy[0][i][3] == -1]  # Filter outer contours
     outer_contour = max(outer_contours, key=cv.contourArea)  # Get the largest outer contour
-    return outer_contour
+    return outer_contour, outer_contours
 
 def get_perspective_transform_points(contour):
     """
@@ -149,15 +149,15 @@ def annotate_image(warp, rect, width_cm, height_cm, width_percent_error, height_
 
     # Annotate width and height on the image
     cv.putText(warp, f"Width: {width_cm:.2f} cm", (int(mid_width[0]), int(mid_width[1])),
-               cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+               cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
     cv.putText(warp, f"Height: {height_cm:.2f} cm", (int(mid_height[0]), int(mid_height[1])),
-               cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+               cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
 
     # Annotate percent error in the top left corner
     cv.putText(warp, f"Width Error: {width_percent_error:.2f}%", (10, 30),
-               cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-    cv.putText(warp, f"Height Error: {height_percent_error:.2f}%", (10, 50),
-               cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+               cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+    cv.putText(warp, f"Height Error: {height_percent_error:.2f}%", (10, 60),
+               cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
 
 def main():
     # Load and preprocess the image
@@ -165,7 +165,10 @@ def main():
     img, blurred_img = load_and_preprocess_image(image_path)
 
     # Find the outer contour
-    outer_contour = find_outer_contour(blurred_img)
+    outer_contour, outer_contours = find_outer_contour(blurred_img)
+
+    # Draw the outer contours on the original image
+    cv.drawContours(img, outer_contours, -1, (0, 255, 0), 2)
 
     # Get the points for perspective transform
     rect = get_perspective_transform_points(outer_contour)
