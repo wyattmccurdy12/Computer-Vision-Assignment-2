@@ -8,137 +8,195 @@ Assignment 2 part 1 - Measurements
 import cv2 as cv
 import numpy as np
 
-def main():
-    # Load the image and convert to grayscale and blur
-    image_path = 'book.jpg'
+def load_and_preprocess_image(image_path):
+    """
+    Load the image, convert to grayscale, and apply Gaussian blur.
+    
+    Args:
+    image_path (str): Path to the image file.
+    
+    Returns:
+    img (ndarray): Original image.
+    blurred_img (ndarray): Preprocessed grayscale and blurred image.
+    """
     img = cv.imread(image_path)
     gray_img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
     blurred_img = cv.GaussianBlur(gray_img, (5, 5), 0)
+    return img, blurred_img
 
-    # Edge detection
-    edges = cv.Canny(blurred_img, 50, 120)
+def find_outer_contour(blurred_img):
+    """
+    Find the outer contour in the preprocessed image.
+    
+    Args:
+    blurred_img (ndarray): Preprocessed grayscale and blurred image.
+    
+    Returns:
+    outer_contour (ndarray): The largest outer contour.
+    """
+    edges = cv.Canny(blurred_img, 50, 120)  # Perform edge detection
+    contours, hierarchy = cv.findContours(edges, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)  # Find contours
+    outer_contours = [contour for i, contour in enumerate(contours) if hierarchy[0][i][3] == -1]  # Filter outer contours
+    outer_contour = max(outer_contours, key=cv.contourArea)  # Get the largest outer contour
+    return outer_contour
 
-    # Find contours
-    contours, hierarchy = cv.findContours(edges, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-
-    # Find the outer contour (contours with no parent, i.e., hierarchy[i][3] == -1)
-    outer_contours = [contour for i, contour in enumerate(contours) if hierarchy[0][i][3] == -1]
-
-    cv.drawContours(img, outer_contours, -1, (0, 255, 0), 2)
-
-    # # Display the warped image
-    # cv.imshow('Warped Image', img)
-    # cv.waitKey(0)
-    # cv.destroyAllWindows()
-
-
-    # # # 
-    outer_contour = outer_contours[0]
-    peri = cv.arcLength(outer_contour, True)
-    approx = cv.approxPolyDP(outer_contour, 0.02 * peri, True)
-
-    # Get the points for perspective transform
-    pts = approx.reshape(4, 2)
+def get_perspective_transform_points(contour):
+    """
+    Get the points for perspective transform.
+    
+    Args:
+    contour (ndarray): Contour points.
+    
+    Returns:
+    rect (ndarray): Ordered points for perspective transform.
+    """
+    peri = cv.arcLength(contour, True)  # Calculate the perimeter of the contour
+    approx = cv.approxPolyDP(contour, 0.02 * peri, True)  # Approximate the contour to a polygon
+    pts = approx.reshape(4, 2)  # Reshape the points to a 4x2 array
     rect = np.zeros((4, 2), dtype="float32")
-
-
-    # Order the points: top-left, top-right, bottom-right, bottom-left
     s = pts.sum(axis=1)
-    rect[0] = pts[np.argmin(s)]
-    rect[2] = pts[np.argmax(s)]
-
+    rect[0] = pts[np.argmin(s)]  # Top-left point
+    rect[2] = pts[np.argmax(s)]  # Bottom-right point
     diff = np.diff(pts, axis=1)
-    rect[1] = pts[np.argmin(diff)]
-    rect[3] = pts[np.argmax(diff)]
+    rect[1] = pts[np.argmin(diff)]  # Top-right point
+    rect[3] = pts[np.argmax(diff)]  # Bottom-left point
+    return rect
 
-
-    # Set desired size and aspect ratio for the cards
-    width = 278 * 4
-    height = 215 * 4
-
+def warp_image(img, rect, width, height):
+    """
+    Warp the image using perspective transform.
+    
+    Args:
+    img (ndarray): Original image.
+    rect (ndarray): Points for perspective transform.
+    width (int): Desired width of the warped image.
+    height (int): Desired height of the warped image.
+    
+    Returns:
+    warp (ndarray): Warped image.
+    """
     dst = np.array([
         [0, 0],
         [width - 1, 0],
         [width - 1, height - 1],
         [0, height - 1]
-    ], dtype="float32")
+    ], dtype="float32")  # Destination points for perspective transform
+    M = cv.getPerspectiveTransform(rect, dst)  # Compute the perspective transform matrix
+    warp = cv.warpPerspective(img, M, (width, height))  # Apply the perspective transform
+    return warp
 
-    # Compute the perspective transform matrix and apply it
-    M = cv.getPerspectiveTransform(rect, dst)
-    warp = cv.warpPerspective(img, M, (width, height))
-    # Convert the warped image to grayscale and apply edge detection
-    warp_gray = cv.cvtColor(warp, cv.COLOR_BGR2GRAY)
-    warp_edges = cv.Canny(warp_gray, 50, 120)
+def find_inner_contour(warp):
+    """
+    Find the inner contour in the warped image.
+    
+    Args:
+    warp (ndarray): Warped image.
+    
+    Returns:
+    inner_contour (ndarray): The largest inner contour.
+    """
+    warp_gray = cv.cvtColor(warp, cv.COLOR_BGR2GRAY)  # Convert the warped image to grayscale
+    warp_edges = cv.Canny(warp_gray, 50, 120)  # Perform edge detection
+    warp_contours, _ = cv.findContours(warp_edges, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)  # Find contours
+    inner_contour = max(warp_contours, key=cv.contourArea)  # Get the largest inner contour
+    return inner_contour
 
-    # Find contours in the warped image
-    warp_contours, _ = cv.findContours(warp_edges, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+def calculate_dimensions(rect):
+    """
+    Calculate the width and height of the rectangle in pixels and cm.
+    
+    Args:
+    rect (ndarray): Points of the rectangle.
+    
+    Returns:
+    width_cm (float): Width of the rectangle in cm.
+    height_cm (float): Height of the rectangle in cm.
+    """
+    width_pix = np.linalg.norm(rect[0] - rect[1])  # Calculate the width in pixels
+    height_pix = np.linalg.norm(rect[1] - rect[2])  # Calculate the height in pixels
+    width_cm = width_pix / 40  # Convert width to cm (assuming 40 pixels per cm)
+    height_cm = height_pix / 40  # Convert height to cm (assuming 40 pixels per cm)
+    return width_cm, height_cm
 
-    print("=======================================================")
-    print("Warp contours")
-    print(warp_contours)
+def calculate_percent_error(measured, actual):
+    """
+    Calculate the percent error between measured and actual values.
+    
+    Args:
+    measured (float): Measured value.
+    actual (float): Actual value.
+    
+    Returns:
+    percent_error (float): Percent error.
+    """
+    percent_error = ((measured - actual) / actual) * 100  # Calculate percent error
+    return percent_error
 
-    print()
-    print("=======================================================")
+def annotate_image(warp, rect, width_cm, height_cm, width_percent_error, height_percent_error):
+    """
+    Annotate the width, height, and percent error on the image.
+    
+    Args:
+    warp (ndarray): Warped image.
+    rect (ndarray): Points of the rectangle.
+    width_cm (float): Width of the rectangle in cm.
+    height_cm (float): Height of the rectangle in cm.
+    width_percent_error (float): Percent error for width.
+    height_percent_error (float): Percent error for height.
+    """
+    mid_width = (rect[0] + rect[1]) / 2  # Midpoint of the top edge
+    mid_height = (rect[1] + rect[2]) / 2  # Midpoint of the right edge
 
-    # Assume the largest contour in the warped image is the inner contour
-    # if warp_contours:
-    inner_contour = max(warp_contours, key=cv.contourArea)
-    cv.drawContours(warp, [inner_contour], -1, (255, 0, 0), 2)  # Draw in blue
+    # Annotate width and height on the image
+    cv.putText(warp, f"Width: {width_cm:.2f} cm", (int(mid_width[0]), int(mid_width[1])),
+               cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+    cv.putText(warp, f"Height: {height_cm:.2f} cm", (int(mid_height[0]), int(mid_height[1])),
+               cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-    peri = cv.arcLength(inner_contour, True)
-    approx = cv.approxPolyDP(inner_contour, 0.02 * peri, True)
+    # Annotate percent error in the top left corner
+    cv.putText(warp, f"Width Error: {width_percent_error:.2f}%", (10, 30),
+               cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+    cv.putText(warp, f"Height Error: {height_percent_error:.2f}%", (10, 50),
+               cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+
+def main():
+    # Load and preprocess the image
+    image_path = 'book.jpg'
+    img, blurred_img = load_and_preprocess_image(image_path)
+
+    # Find the outer contour
+    outer_contour = find_outer_contour(blurred_img)
 
     # Get the points for perspective transform
-    pts = approx.reshape(4, 2)
-    rect = np.zeros((4, 2), dtype="float32")
+    rect = get_perspective_transform_points(outer_contour)
 
+    # Set desired size and aspect ratio for the warped image
+    width = 278 * 4
+    height = 215 * 4
 
-    # Order the points: top-left, top-right, bottom-right, bottom-left
-    s = pts.sum(axis=1)
-    rect[0] = pts[np.argmin(s)]
-    rect[2] = pts[np.argmax(s)]
+    # Warp the image
+    warp = warp_image(img, rect, width, height)
 
-    diff = np.diff(pts, axis=1)
-    rect[1] = pts[np.argmin(diff)]
-    rect[3] = pts[np.argmax(diff)]
-    
+    # Find the inner contour in the warped image
+    inner_contour = find_inner_contour(warp)
+    cv.drawContours(warp, [inner_contour], -1, (255, 0, 0), 2)  # Draw inner contour in blue
 
-    # Calculate the width and height of the rectangle
-    width_pix = np.linalg.norm(rect[0] - rect[1])
-    height_pix = np.linalg.norm(rect[1] - rect[2])
+    # Get the points for perspective transform of the inner contour
+    rect = get_perspective_transform_points(inner_contour)
 
-    # Convert to the actual width and height in cm
-    width_cm = width_pix / 40
-    height_cm = height_pix / 40
+    # Calculate the dimensions of the inner contour rectangle
+    width_cm, height_cm = calculate_dimensions(rect)
 
-    # Actual dimensions
+    # Actual dimensions in cm
     actual_width_cm = 8
     actual_height_cm = 10.6
 
     # Calculate the percent error
-    width_percent_error = ((width_cm - actual_width_cm) / actual_width_cm) * 100
-    height_percent_error = ((height_cm - actual_height_cm) / actual_height_cm) * 100
+    width_percent_error = calculate_percent_error(width_cm, actual_width_cm)
+    height_percent_error = calculate_percent_error(height_cm, actual_height_cm)
 
-
-    # Print the width, height, and area
-    print(f"Width: {width} pixels")
-    print(f"Height: {height} pixels")
-
-    # Annotate the width and height on the image
-    mid_width = (rect[0] + rect[1]) / 2
-    mid_height = (rect[1] + rect[2]) / 2
-
-    cv.putText(warp, f"Width: {int(width_cm)} cm", (int(mid_width[0]), int(mid_width[1])),
-                cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-    cv.putText(warp, f"Height: {int(height_cm)} cm", (int(mid_height[0]), int(mid_height[1])),
-                cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-
-    # Annotate the percent error in the top left corner
-    cv.putText(warp, f"Width Error: {width_percent_error:.2f}%", (10, 30),
-            cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
-    cv.putText(warp, f"Height Error: {height_percent_error:.2f}%", (10, 50),
-            cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+    # Annotate the image with dimensions and percent error
+    annotate_image(warp, rect, width_cm, height_cm, width_percent_error, height_percent_error)
 
     # Display the original image with outer contours
     cv.imshow('Original Image with Outer Contours', img)
@@ -148,89 +206,5 @@ def main():
     cv.waitKey(0)
     cv.destroyAllWindows()
 
-    
-    
-    # Now that we have the inner contours on the warped/corrected image, we need to calculate the area
-
-
-
-
-
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-    # # print(outer_contours)
-
-    # print("Contours found: ", len(contours))
-
-    # # Find the outer contour (assuming it's the largest contour)
-    # outer_contour = contours[0]
-
-    # # Find the inner contour (assuming it's the second largest contour)
-    # inner_contour = contours[2]
-
-    # # Approximate the contours to polygons
-    # epsilon_outer = 0.02 * cv.arcLength(outer_contour, True)
-    # outer_poly = cv.approxPolyDP(outer_contour, epsilon_outer, True)
-
-    # epsilon_inner = 0.02 * cv.arcLength(inner_contour, True)
-    # inner_poly = cv.approxPolyDP(inner_contour, epsilon_inner, True)
-
-    # # Draw the approximated polygons on the original image
-    # cv.drawContours(img, [outer_poly], -1, (0, 255, 0), 2)
-    # cv.drawContours(img, [inner_poly], -1, (255, 0, 0), 2)
-
-    # # Calculate the real width and height of the inner contour polygon
-    # def euclidean_distance(pt1, pt2):
-    #     return np.sqrt((pt1[0] - pt2[0]) ** 2 + (pt1[1] - pt2[1]) ** 2)
-
-    # # Calculate the width and height based on the distances between the points
-    # outer_width_pixels = euclidean_distance(outer_poly[0][0], outer_poly[1][0])
-    # outer_height_pixels = euclidean_distance(outer_poly[0][0], outer_poly[3][0])
-
-    # inner_width_pixels = euclidean_distance(inner_poly[0][0], inner_poly[1][0])
-    # inner_height_pixels = euclidean_distance(inner_poly[0][0], inner_poly[3][0])
-
-    # # Assuming the outer contour represents a paper with width 21.5 cm and height 27.8 cm
-    # outer_width_cm = 21.5
-    # outer_height_cm = 27.8
-
-    # inner_width_cm = (inner_width_pixels / outer_width_pixels) * outer_width_cm
-    # inner_height_cm = (inner_height_pixels / outer_height_pixels) * outer_height_cm
-
-    # print(f"Inner Width: {inner_width_cm:.2f} cm")
-    # print(f"Inner Height: {inner_height_cm:.2f} cm")
-
-    # # Calculate the error
-    # actual_width_cm = 8.0
-    # actual_height_cm = 10.6
-
-    # width_error = abs(inner_width_cm - actual_width_cm)
-    # height_error = abs(inner_height_cm - actual_height_cm)
-
-    # width_error_percent = (width_error / actual_width_cm) * 100
-    # height_error_percent = (height_error / actual_height_cm) * 100
-
-    # print(f"Width Error: {width_error:.2f} cm ({width_error_percent:.2f}%)")
-    # print(f"Height Error: {height_error:.2f} cm ({height_error_percent:.2f}%)")
-
-    # # Annotate the width, height, and error on the image
-    # font_scale = 0.7
-    # thickness = 2
-    # cv.putText(img, f'Outer: {outer_width_cm:.2f} cm x {outer_height_cm:.2f} cm', (outer_poly[0][0][0] - 100, outer_poly[0][0][1] - 10), cv.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 0), thickness)
-    # cv.putText(img, f'Inner: {inner_width_cm:.2f} cm x {inner_height_cm:.2f} cm', (inner_poly[0][0][0], inner_poly[0][0][1] - 10), cv.FONT_HERSHEY_SIMPLEX, font_scale, (255, 0, 0), thickness)
-    # cv.putText(img, f'Width Error: {width_error:.2f} cm ({width_error_percent:.2f}%)', (10, 30), cv.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), thickness)
-    # cv.putText(img, f'Height Error: {height_error:.2f} cm ({height_error_percent:.2f}%)', (10, 60), cv.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), thickness)
-
-    # # Save the annotated image
-    # cv.imwrite('book_measurements.jpg', img)
-
-    # # Display the annotated image
-    # cv.imshow('Annotated Image', img)
-    # cv.waitKey(0)
-    # cv.destroyAllWindows()
