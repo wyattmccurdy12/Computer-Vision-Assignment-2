@@ -26,10 +26,10 @@ def main():
 
     cv.drawContours(img, outer_contours, -1, (0, 255, 0), 2)
 
-    # Display the warped image
-    cv.imshow('Warped Image', img)
-    cv.waitKey(0)
-    cv.destroyAllWindows()
+    # # Display the warped image
+    # cv.imshow('Warped Image', img)
+    # cv.waitKey(0)
+    # cv.destroyAllWindows()
 
 
     # # # 
@@ -53,8 +53,8 @@ def main():
 
 
     # Set desired size and aspect ratio for the cards
-    width = 700
-    height = 400
+    width = 278 * 4
+    height = 215 * 4
 
     dst = np.array([
         [0, 0],
@@ -66,11 +66,79 @@ def main():
     # Compute the perspective transform matrix and apply it
     M = cv.getPerspectiveTransform(rect, dst)
     warp = cv.warpPerspective(img, M, (width, height))
+    # Convert the warped image to grayscale and apply edge detection
+    warp_gray = cv.cvtColor(warp, cv.COLOR_BGR2GRAY)
+    warp_edges = cv.Canny(warp_gray, 50, 120)
 
-    # Show the result
-    cv.imshow('Warped Card', warp)
+    # Find contours in the warped image
+    warp_contours, _ = cv.findContours(warp_edges, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+
+    print("=======================================================")
+    print("Warp contours")
+    print(warp_contours)
+
+    print()
+    print("=======================================================")
+
+    # Assume the largest contour in the warped image is the inner contour
+    # if warp_contours:
+    inner_contour = max(warp_contours, key=cv.contourArea)
+    cv.drawContours(warp, [inner_contour], -1, (255, 0, 0), 2)  # Draw in blue
+
+    peri = cv.arcLength(inner_contour, True)
+    approx = cv.approxPolyDP(inner_contour, 0.02 * peri, True)
+
+    # Get the points for perspective transform
+    pts = approx.reshape(4, 2)
+    rect = np.zeros((4, 2), dtype="float32")
+
+
+    # Order the points: top-left, top-right, bottom-right, bottom-left
+    s = pts.sum(axis=1)
+    rect[0] = pts[np.argmin(s)]
+    rect[2] = pts[np.argmax(s)]
+
+    diff = np.diff(pts, axis=1)
+    rect[1] = pts[np.argmin(diff)]
+    rect[3] = pts[np.argmax(diff)]
+    
+
+    # Calculate the width and height of the rectangle
+    width = np.linalg.norm(rect[0] - rect[1])
+    height = np.linalg.norm(rect[1] - rect[2])
+
+    # Calculate the area of the rectangle
+    area = width * height
+
+    # Print the width, height, and area
+    print(f"Width: {width} pixels")
+    print(f"Height: {height} pixels")
+    print(f"Area: {area} square pixels")
+
+    # Annotate the width and height on the image
+    mid_width = (rect[0] + rect[1]) / 2
+    mid_height = (rect[1] + rect[2]) / 2
+
+    cv.putText(warp, f"Width: {int(width)} px", (int(mid_width[0]), int(mid_width[1])),
+                cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+    cv.putText(warp, f"Height: {int(height)} px", (int(mid_height[0]), int(mid_height[1])),
+                cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+    # Display the original image with outer contours
+    cv.imshow('Original Image with Outer Contours', img)
+
+    # Display the warped image with inner contour and annotations
+    cv.imshow('Warped Image with Inner Contour', warp)
     cv.waitKey(0)
     cv.destroyAllWindows()
+
+    
+    
+    # Now that we have the inner contours on the warped/corrected image, we need to calculate the area
+
+
+
+
 
 if __name__ == '__main__':
     main()
