@@ -104,25 +104,41 @@ def main():
     
 
     # Calculate the width and height of the rectangle
-    width = np.linalg.norm(rect[0] - rect[1])
-    height = np.linalg.norm(rect[1] - rect[2])
+    width_pix = np.linalg.norm(rect[0] - rect[1])
+    height_pix = np.linalg.norm(rect[1] - rect[2])
 
-    # Calculate the area of the rectangle
-    area = width * height
+    # Convert to the actual width and height in cm
+    width_cm = width_pix / 40
+    height_cm = height_pix / 40
+
+    # Actual dimensions
+    actual_width_cm = 8
+    actual_height_cm = 10.6
+
+    # Calculate the percent error
+    width_percent_error = ((width_cm - actual_width_cm) / actual_width_cm) * 100
+    height_percent_error = ((height_cm - actual_height_cm) / actual_height_cm) * 100
+
 
     # Print the width, height, and area
     print(f"Width: {width} pixels")
     print(f"Height: {height} pixels")
-    print(f"Area: {area} square pixels")
 
     # Annotate the width and height on the image
     mid_width = (rect[0] + rect[1]) / 2
     mid_height = (rect[1] + rect[2]) / 2
 
-    cv.putText(warp, f"Width: {int(width)} px", (int(mid_width[0]), int(mid_width[1])),
+    cv.putText(warp, f"Width: {int(width_cm)} cm", (int(mid_width[0]), int(mid_width[1])),
                 cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-    cv.putText(warp, f"Height: {int(height)} px", (int(mid_height[0]), int(mid_height[1])),
+    cv.putText(warp, f"Height: {int(height_cm)} cm", (int(mid_height[0]), int(mid_height[1])),
                 cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+
+    # Annotate the percent error in the top left corner
+    cv.putText(warp, f"Width Error: {width_percent_error:.2f}%", (10, 30),
+            cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+    cv.putText(warp, f"Height Error: {height_percent_error:.2f}%", (10, 50),
+            cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
 
     # Display the original image with outer contours
     cv.imshow('Original Image with Outer Contours', img)
