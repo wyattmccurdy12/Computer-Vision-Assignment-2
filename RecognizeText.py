@@ -83,7 +83,7 @@ def process_sign1(img):
     img (ndarray): Input image.
     """
     # Display the original image
-    cv.imshow('Original Image', img)
+    cv.imshow('Sign #1', img)
     cv.waitKey(0)
 
     # Preprocess the image
@@ -157,7 +157,7 @@ def process_sign1(img):
         text_from_unwarped = pt.image_to_string(unwarped)
 
         # Display the corrected image
-        cv.imshow('Corrected Image', unwarped)
+        cv.imshow('Sign 1 Text', unwarped)
         cv.waitKey(0)
         cv.destroyAllWindows()
 
@@ -176,6 +176,11 @@ def process_sign_2(sign2):
     Returns:
     text (str): Extracted text from the sign.
     """
+    # Show the original image
+    cv.imshow('Sign #2', sign2)
+    cv.waitKey(0)
+
+
     # Convert to grayscale, blur, and threshold for text detection
     gray = cv.cvtColor(sign2, cv.COLOR_BGR2GRAY)
     blur = cv.GaussianBlur(gray, (5, 5), 0)
@@ -219,6 +224,11 @@ def process_sign_2(sign2):
         matrix = cv.getPerspectiveTransform(adjusted_pts, dst)
         warp = cv.warpPerspective(gray, matrix, (width, height))
 
+        # Display the warped image
+        cv.imshow('Sign 2 Text', warp)
+        cv.waitKey(0)
+        cv.destroyAllWindows()
+
         # Use pytesseract to extract text from the warped image
         text = pt.image_to_string(warp)
         text = text.strip('\n')
@@ -227,6 +237,11 @@ def process_sign_2(sign2):
         return "No rectangular contours found."
 
 def process_sign3(sign3):
+
+    # Display the original image
+    cv.imshow('Sign #3', sign3)
+    cv.waitKey(0)
+
     # Convert to grayscale
     sign3_gray = cv.cvtColor(sign3, cv.COLOR_BGR2GRAY)
 
@@ -277,10 +292,10 @@ def process_sign3(sign3):
     height, width = unwarp.shape[:2]
     cropped_unwarp = unwarp[clip_amount:height-clip_amount, clip_amount:width-clip_amount]
 
-    # Display the cropped unwarped image
-    # plt.imshow(cropped_unwarp, cmap='gray', vmin=0, vmax=255)
-    # plt.axis('off')
-    # plt.show()
+    # Display the cropped image
+    cv.imshow('Sign 3 Text', cropped_unwarp)
+    cv.waitKey(0)
+    cv.destroyAllWindows()
 
     # Get text using pytesseract
     text = pt.image_to_string(cropped_unwarp)
@@ -291,6 +306,11 @@ def process_sign3(sign3):
     return text
 
 def process_sign4(sign4):
+
+    # Display the original image
+    cv.imshow('Sign #4', sign4)
+    cv.waitKey(0)
+
     # Convert the image from BGR to RGB
     sign4_rgb = cv.cvtColor(sign4, cv.COLOR_BGR2RGB)
     sign4_gray = cv.cvtColor(sign4, cv.COLOR_BGR2GRAY)
@@ -373,37 +393,70 @@ def process_sign4(sign4):
     # For final image, we threshold to just get black text on white background
     _, final_image_thresh = cv.threshold(final_image, 80, 255, cv.THRESH_BINARY)
 
+    # Display the final image
+    cv.imshow('Sign 4 Text', final_image_thresh)
+    cv.waitKey(0)
+    cv.destroyAllWindows()
+
     # Now finally use pytesseract to extract text
     text = pt.image_to_string(final_image_thresh)
 
     return text
 
 
-# Example usage
 if __name__ == "__main__":
+    '''
+    In the main function we will process the sample image, followed by 
+    the four signs. We will display the original image, the processed image,
+    and the extracted text.
+    '''
+
+    # Process the sample image
+    print("=============================================")
+    print("Processing sample image...")
+    print()
+    text = pt.image_to_string(cv.imread('text.jpg'))
+    print(text)
+    print()
+
+    print("=============================================")
+    print("Processing sign 1...")
+    print()
     # Path to the image
     sign1 = 'sign1.jpg'
-
-    # Load image
     sign1 = cv.imread(sign1)
 
     # Process and display the image
     imgtext = process_sign1(sign1)
     print(imgtext)
+    print()
+    print("=============================================")
     
     # Read sign 2
+    print("Processing sign 2...")
+    print()
     sign2 = cv.imread('sign2.jpg')
 
     # Process sign 2
     sign2_text = process_sign_2(sign2)
     print(sign2_text)
+    print()
+    print("=============================================")
 
     # Process sign 3
+    print("Processing sign 3...")
+    print()
     sign3 = cv.imread('sign3.jpg')
     sign3_text = process_sign3(sign3)
     print(sign3_text)
+    print()
+    print("=============================================")
 
     # Process sign 4
+    print("Processing sign 4...")
+    print()
     sign4 = cv.imread('sign4.jpg')
     sign4_text = process_sign4(sign4)
     print(sign4_text)
+    print()
+    print("=============================================")
